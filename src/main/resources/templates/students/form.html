@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(${isEdit} ? 'Edit Student' : 'Add Student')}"></head>
+<body>
+
+<div th:replace="~{fragments/layout :: shell(${isEdit} ? 'Edit Student' : 'Add New Student', ~{::section})}">
+    <section>
+        <div class="card border-0 shadow-sm rounded-3" style="max-width: 850px;">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold" th:text="${isEdit} ? 'Update Student Details' : 'Student Registration Form'">Form</h6>
+                <a th:href="@{/students}" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-arrow-left me-1"></i> Back to List
+                </a>
+            </div>
+
+            <div class="card-body p-4">
+                <form th:action="@{/students/save}" th:object="${student}" method="post">
+                    <input type="hidden" th:field="*{id}">
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="rollNumber" class="form-label fw-medium">Roll Number *</label>
+                            <input type="text" id="rollNumber" th:field="*{rollNumber}" class="form-control"
+                                   th:classappend="${#fields.hasErrors('rollNumber')} ? 'is-invalid'"
+                                   placeholder="e.g., CSE2026001">
+                            <div class="invalid-feedback" th:errors="*{rollNumber}"></div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="department" class="form-label fw-medium">Department</label>
+                            <select id="department" th:field="*{department}" class="form-select">
+                                <option value="">-- Select Department --</option>
+                                <option th:each="dept : ${departments}"
+                                        th:value="${dept.id}"
+                                        th:text="${dept.code + ' - ' + dept.name}"></option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="firstName" class="form-label fw-medium">First Name *</label>
+                            <input type="text" id="firstName" th:field="*{firstName}" class="form-control"
+                                   th:classappend="${#fields.hasErrors('firstName')} ? 'is-invalid'"
+                                   placeholder="Enter first name">
+                            <div class="invalid-feedback" th:errors="*{firstName}"></div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="lastName" class="form-label fw-medium">Last Name *</label>
+                            <input type="text" id="lastName" th:field="*{lastName}" class="form-control"
+                                   th:classappend="${#fields.hasErrors('lastName')} ? 'is-invalid'"
+                                   placeholder="Enter last name">
+                            <div class="invalid-feedback" th:errors="*{lastName}"></div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="email" class="form-label fw-medium">Email *</label>
+                            <input type="email" id="email" th:field="*{email}" class="form-control"
+                                   th:classappend="${#fields.hasErrors('email')} ? 'is-invalid'"
+                                   placeholder="student@college.edu">
+                            <div class="invalid-feedback" th:errors="*{email}"></div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="phone" class="form-label fw-medium">Phone</label>
+                            <input type="text" id="phone" th:field="*{phone}" class="form-control"
+                                   th:classappend="${#fields.hasErrors('phone')} ? 'is-invalid'"
+                                   placeholder="10-digit mobile number">
+                            <div class="invalid-feedback" th:errors="*{phone}"></div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="semester" class="form-label fw-medium">Semester</label>
+                            <input type="number" id="semester" th:field="*{semester}" min="1" max="8" class="form-control"
+                                   th:classappend="${#fields.hasErrors('semester')} ? 'is-invalid'">
+                            <div class="invalid-feedback" th:errors="*{semester}"></div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="gender" class="form-label fw-medium">Gender</label>
+                            <select id="gender" th:field="*{gender}" class="form-select">
+                                <option value="">-- Select --</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="dateOfBirth" class="form-label fw-medium">Date of Birth</label>
+                            <input type="date" id="dateOfBirth" th:field="*{dateOfBirth}" class="form-control">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="admissionDate" class="form-label fw-medium">Admission Date</label>
+                            <input type="date" id="admissionDate" th:field="*{admissionDate}" class="form-control">
+                        </div>
+
+                        <div class="col-12">
+                            <label for="address" class="form-label fw-medium">Address</label>
+                            <textarea id="address" th:field="*{address}" rows="3" class="form-control"
+                                      placeholder="Enter residential address"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="bi bi-save me-1"></i> Save Student
+                        </button>
+                        <a th:href="@{/students}" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div th:replace="~{fragments/layout :: scripts}"></div>
+</body>
+</html>

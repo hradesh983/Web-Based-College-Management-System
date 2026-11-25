@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Student Profile')}"></head>
+<body>
+
+<div th:replace="~{fragments/layout :: shell('Student Profile', ~{::section})}">
+    <section>
+        <div class="card border-0 shadow-sm rounded-3" style="max-width: 750px;">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h6 class="mb-0 fw-bold">
+                    <i class="bi bi-person-vcard me-2 text-primary"></i>
+                    <span th:text="${student.fullName}">Student Name</span>
+                </h6>
+                <div class="d-flex gap-2">
+                    <a th:href="@{/students/edit/{id}(id=${student.id})}" class="btn btn-primary btn-sm">
+                        <i class="bi bi-pencil me-1"></i> Edit
+                    </a>
+                    <a th:href="@{/students}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-arrow-left me-1"></i> Back
+                    </a>
+                </div>
+            </div>
+
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <small class="text-muted d-block">Roll Number</small>
+                        <span class="fw-semibold" th:text="${student.rollNumber}">CS101</span>
+                    </div>
+                    <div class="col-md-6">
+                        <small class="text-muted d-block">Department</small>
+                        <span class="fw-semibold"
+                              th:text="${student.department != null ? student.department.code + ' - ' + student.department.name : 'N/A'}">CSE</span>
+                    </div>
+                    <div class="col-md-6">
+                        <small class="text-muted d-block">Email</small>
+                        <span th:text="${student.email}">email@college.edu</span>
+                    </div>
+                    <div class="col-md-6">
+                        <small class="text-muted d-block">Phone</small>
+                        <span th:text="${student.phone != null and !student.phone.isEmpty() ? student.phone : '-'}">-</span>
+                    </div>
+                    <div class="col-md-4">
+                        <small class="text-muted d-block">Semester</small>
+                        <span th:text="'Semester ' + ${student.semester}">Semester 1</span>
+                    </div>
+                    <div class="col-md-4">
+                        <small class="text-muted d-block">Gender</small>
+                        <span th:text="${student.gender != null and !student.gender.isEmpty() ? student.gender : '-'}">-</span>
+                    </div>
+                    <div class="col-md-4">
+                        <small class="text-muted d-block">Date of Birth</small>
+                        <span th:text="${student.dateOfBirth != null ? student.dateOfBirth : '-'}">-</span>
+                    </div>
+                    <div class="col-md-6">
+                        <small class="text-muted d-block">Admission Date</small>
+                        <span th:text="${student.admissionDate != null ? student.admissionDate : '-'}">-</span>
+                    </div>
+                    <div class="col-12">
+                        <small class="text-muted d-block">Address</small>
+                        <span th:text="${student.address != null and !student.address.isEmpty() ? student.address : '-'}">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div th:replace="~{fragments/layout :: scripts}"></div>
+</body>
+</html>

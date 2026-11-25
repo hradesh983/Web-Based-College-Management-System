@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Students')}"></head>
+<body>
+
+<div th:replace="~{fragments/layout :: shell('Student Management', ~{::section})}">
+    <section>
+        <!-- Toast Container -->
+        <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
+            <div id="liveToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body fw-medium" id="liveToastBody"></div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Search, Filter & Action Bar -->
+        <div class="card border-0 shadow-sm mb-4 rounded-3">
+            <div class="card-body">
+                <div class="row g-2 align-items-center">
+                    <div class="col-lg-7">
+                        <form th:action="@{/students}" method="get" class="row g-2">
+                            <div class="col-md-5">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                                    <input type="text" name="keyword" th:value="${keyword}" class="form-control"
+                                           placeholder="Search by roll number, name, or email...">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <select name="departmentId" class="form-select" onchange="this.form.submit()">
+                                    <option value="">All Departments</option>
+                                    <option th:each="dept : ${departments}"
+                                            th:value="${dept.id}"
+                                            th:text="${dept.code}"
+                                            th:selected="${selectedDepartmentId != null and selectedDepartmentId == dept.id}"></option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select name="semester" class="form-select" onchange="this.form.submit()">
+                                    <option value="">All Semesters</option>
+                                    <option th:each="sem : ${#numbers.sequence(1, 8)}"
+                                            th:value="${sem}"
+                                            th:text="'Sem ' + ${sem}"
+                                            th:selected="${selectedSemester != null and selectedSemester == sem}"></option>
+                                </select>
+                            </div>
+                            <div class="col-md-2 d-flex gap-1">
+                                <button type="submit" class="btn btn-outline-primary w-100">Filter</button>
+                                <a th:if="${(keyword != null and !keyword.isEmpty()) or selectedDepartmentId != null or selectedSemester != null}"
+                                   th:href="@{/students}" class="btn btn-outline-secondary" title="Reset Filters">
+                                    <i class="bi bi-x-lg"></i>
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="col-lg-5 d-flex flex-wrap justify-content-lg-end gap-2">
+                        <button type="button" id="bulkPromoteBtn" class="btn btn-warning d-none" onclick="submitBulkPromote()">
+                            <i class="bi bi-arrow-up-circle me-1"></i> Bulk Promote (<span id="selectedCount">0</span>)
+                        </button>
+
+                        <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#importCsvModal">
+                            <i class="bi bi-upload me-1"></i> Import CSV
+                        </button>
+
+                        <div class="btn-group">
+                            <button type="button" class="btn btn-outline-dark dropdown-toggle" data-bs-toggle="dropdown">
+                                <i class="bi bi-download me-1"></i> Export
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li>
+                                    <a class="dropdown-item"
+                                       th:href="@{/students/export/csv(keyword=${keyword}, departmentId=${selectedDepartmentId}, semester=${selectedSemester})}">
+                                        <i class="bi bi-filetype-csv me-2 text-success"></i> Export CSV
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item"
+                                       th:href="@{/students/export/pdf(keyword=${keyword}, departmentId=${selectedDepartmentId}, semester=${selectedSemester})}">
+                                        <i class="bi bi-filetype-pdf me-2 text-danger"></i> Export PDF
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <button type="button" class="btn btn-primary" onclick="openAddStudentModal()">
+                            <i class="bi bi-plus-circle me-1"></i> Add Student
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bulk Promote Hidden Form -->
+        <form id="bulkPromoteForm" th:action="@{/students/bulk-promote}" method="post" class="d-none"></form>
+
+        <!-- Enhanced Student Data Table -->
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                        <tr>
+                            <th style="width: 40px;" class="ps-3">
+                                <input type="checkbox" class="form-check-input" id="selectAllCheckbox">
+                            </th>
+                            <th>Roll No.</th>
+                            <th>Full Name</th>
+                            <th>Email</th>
+                            <th>Department</th>
+                            <th>Semester</th>
+                            <th>Phone</th>
+                            <th>Status</th>
+                            <th class="text-end pe-3">Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:if="${#lists.isEmpty(students)}">
+                            <td colspan="9" class="text-center text-muted py-5">
+                                <i class="bi bi-people fs-2 d-block mb-2 opacity-50"></i>
+                                No students found. Click <strong>Add Student</strong> or <strong>Import CSV</strong> to get started.
+                            </td>
+                        </tr>
+                        <tr th:each="student : ${students}">
+                            <td class="ps-3">
+                                <input type="checkbox" class="form-check-input student-checkbox" th:value="${student.id}">
+                            </td>
+                            <td class="fw-semibold text-primary" th:text="${student.rollNumber}">CSE20260001</td>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    <img th:if="${student.profilePhoto != null and !student.profilePhoto.isEmpty()}"
+                                         th:src="${student.profilePhoto}" alt="Avatar"
+                                         class="rounded-circle object-fit-cover" style="width: 32px; height: 32px;">
+                                    <div th:if="${student.profilePhoto == null or student.profilePhoto.isEmpty()}"
+                                         class="rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center fw-bold small"
+                                         style="width: 32px; height: 32px;"
+                                         th:text="${#strings.substring(student.firstName,0,1) + #strings.substring(student.lastName,0,1)}">JD</div>
+                                    <span class="fw-medium" th:text="${student.fullName}">John Doe</span>
+                                </div>
+                            </td>
+                            <td th:text="${student.email}">john@college.edu</td>
+                            <td th:text="${student.department != null ? student.department.code : 'N/A'}">CSE</td>
+                            <td>
+                                <span class="badge bg-light text-dark border" th:text="'Sem ' + ${student.semester}">Sem 1</span>
+                            </td>
+                            <td th:text="${student.phone != null and !student.phone.isEmpty() ? student.phone : '-'}">-</td>
+                            <td>
+                                <span class="badge"
+                                      th:classappend="${student.status == 'Active'} ? 'bg-success' : (${student.status == 'Detained'} ? 'bg-danger' : 'bg-secondary')"
+                                      th:text="${student.status != null ? student.status : 'Active'}">Active</span>
+                            </td>
+                            <td class="text-end pe-3">
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-info" title="360° Profile"
+                                            th:onclick="'openProfileModal(' + ${student.id} + ')'">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-primary" title="Edit Student"
+                                            th:onclick="'openEditStudentModal(' + ${student.id} + ')'">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger" title="Delete Student"
+                                            th:data-id="${student.id}"
+                                            th:data-name="${student.fullName}"
+                                            th:data-roll="${student.rollNumber}"
+                                            onclick="openDeleteModal(this)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Pagination Footer -->
+            <div class="card-footer bg-white py-3 d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2"
+                 th:if="${totalPages > 0}">
+                <small class="text-muted">
+                    Showing page <strong th:text="${currentPage + 1}">1</strong> of
+                    <strong th:text="${totalPages}">1</strong>
+                    (<span th:text="${studentPage.totalElements}">0</span> total students)
+                </small>
+
+                <nav th:if="${totalPages > 1}">
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item" th:classappend="${currentPage == 0} ? 'disabled'">
+                            <a class="page-link"
+                               th:href="@{/students(page=${currentPage - 1}, keyword=${keyword}, departmentId=${selectedDepartmentId}, semester=${selectedSemester})}">
+                                Previous
+                            </a>
+                        </li>
+                        <li class="page-item"
+                            th:each="i : ${#numbers.sequence(0, totalPages - 1)}"
+                            th:classappend="${i == currentPage} ? 'active'">
+                            <a class="page-link"
+                               th:href="@{/students(page=${i}, keyword=${keyword}, departmentId=${selectedDepartmentId}, semester=${selectedSemester})}"
+                               th:text="${i + 1}">1</a>
+                        </li>
+                        <li class="page-item" th:classappend="${currentPage + 1 >= totalPages} ? 'disabled'">
+                            <a class="page-link"
+                               th:href="@{/students(page=${currentPage + 1}, keyword=${keyword}, departmentId=${selectedDepartmentId}, semester=${selectedSemester})}">
+                                Next
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </section>
+</div>
+
+<!-- Add / Edit Student Modal -->
+<div class="modal fade" id="studentFormModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold" id="studentModalTitle">Add New Student</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form th:action="@{/students/save}" th:object="${student}" method="post" enctype="multipart/form-data">
+                <div class="modal-body p-4">
+                    <input type="hidden" id="formStudentId" th:field="*{id}">
+
+                    <!-- Academic Info -->
+                    <h6 class="text-primary fw-bold border-bottom pb-2 mb-3">
+                        <i class="bi bi-mortarboard me-1"></i> Academic Info
+                    </h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <label for="formDepartment" class="form-label fw-medium">Department</label>
+                            <select id="formDepartment" th:field="*{department}" class="form-select" onchange="suggestRollNumber()">
+                                <option value="">-- Select Department --</option>
+                                <option th:each="dept : ${departments}"
+                                        th:value="${dept.id}"
+                                        th:text="${dept.code + ' - ' + dept.name}"></option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="formAdmissionYear" class="form-label fw-medium">Admission Year</label>
+                            <input type="number" id="formAdmissionYear" th:field="*{admissionYear}" class="form-control"
+                                   min="2000" max="2100" onchange="suggestRollNumber()">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="formRollNumber" class="form-label fw-medium">Roll Number *</label>
+                            <input type="text" id="formRollNumber" th:field="*{rollNumber}" class="form-control"
+                                   th:classappend="${#fields.hasErrors('rollNumber')} ? 'is-invalid'"
+                                   placeholder="Auto-generated or custom" required>
+                            <div class="invalid-feedback" th:errors="*{rollNumber}"></div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="formSemester" class="form-label fw-medium">Semester</label>
+                            <select id="formSemester" th:field="*{semester}" class="form-select">
+                                <option th:each="sem : ${#numbers.sequence(1, 8)}"
+                                        th:value="${sem}" th:text="'Semester ' + ${sem}"></option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="formStatus" class="form-label fw-medium">Status</label>
+                            <select id="formStatus" th:field="*{status}" class="form-select">
+                                <option value="Active">Active</option>
+                                <option value="Detained">Detained</option>
+                                <option value="Graduated">Graduated</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="formFeeStatus" class="form-label fw-medium">Semester Fee Status</label>
+                            <select id="formFeeStatus" th:field="*{feeStatus}" class="form-select">
+                                <option value="Paid">Paid</option>
+                                <option value="Pending">Pending</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Personal Info -->
+                    <h6 class="text-primary fw-bold border-bottom pb-2 mb-3">
+                        <i class="bi bi-person me-1"></i> Personal Info
+                    </h6>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label for="formFirstName" class="form-label fw-medium">First Name *</label>
+                            <input type="text" id="formFirstName" th:field="*{firstName}" class="form-control"
+                                   th:classappend="${#fields.hasErrors('firstName')} ? 'is-invalid'" required>
+                            <div class="invalid-feedback" th:errors="*{firstName}"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="formLastName" class="form-label fw-medium">Last Name *</label>
+                            <input type="text" id="formLastName" th:field="*{lastName}" class="form-control"
+                                   th:classappend="${#fields.hasErrors('lastName')} ? 'is-invalid'" required>
+                            <div class="invalid-feedback" th:errors="*{lastName}"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="formEmail" class="form-label fw-medium">Email *</label>
+                            <input type="email" id="formEmail" th:field="*{email}" class="form-control"
+                                   th:classappend="${#fields.hasErrors('email')} ? 'is-invalid'" required>
+                            <div class="invalid-feedback" th:errors="*{email}"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="formPhone" class="form-label fw-medium">Phone Number</label>
+                            <input type="text" id="formPhone" th:field="*{phone}" class="form-control"
+                                   th:classappend="${#fields.hasErrors('phone')} ? 'is-invalid'"
+                                   placeholder="e.g., 9876543210">
+                            <div class="invalid-feedback" th:errors="*{phone}"></div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="formDob" class="form-label fw-medium">Date of Birth</label>
+                            <input type="date" id="formDob" th:field="*{dateOfBirth}" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="formGender" class="form-label fw-medium">Gender</label>
+                            <select id="formGender" th:field="*{gender}" class="form-select">
+                                <option value="">-- Select --</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="photoFileInput" class="form-label fw-medium">Profile Photo</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <img id="photoPreview" src="https://via.placeholder.com/40x40?text=Pic"
+                                     alt="Preview" class="rounded-circle object-fit-cover border"
+                                     style="width: 40px; height: 40px;">
+                                <input type="file" id="photoFileInput" name="photoFile" class="form-control form-control-sm"
+                                       accept="image/*" onchange="previewSelectedPhoto(event)">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Guardian & Address Info -->
+                    <h6 class="text-primary fw-bold border-bottom pb-2 mb-3">
+                        <i class="bi bi-house-heart me-1"></i> Guardian & Address Info
+                    </h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="formGuardianName" class="form-label fw-medium">Guardian Name</label>
+                            <input type="text" id="formGuardianName" th:field="*{guardianName}" class="form-control">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="formGuardianPhone" class="form-label fw-medium">Guardian Phone</label>
+                            <input type="text" id="formGuardianPhone" th:field="*{guardianPhone}" class="form-control"
+                                   th:classappend="${#fields.hasErrors('guardianPhone')} ? 'is-invalid'">
+                            <div class="invalid-feedback" th:errors="*{guardianPhone}"></div>
+                        </div>
+                        <div class="col-12">
+                            <label for="formAddress" class="form-label fw-medium">Full Address</label>
+                            <textarea id="formAddress" th:field="*{address}" rows="2" class="form-control"></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="bi bi-save me-1"></i> Save Student
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 360° Student Profile Modal -->
+<div class="modal fade" id="profile360Modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-dark text-white">
+                <div class="d-flex align-items-center gap-3">
+                    <img id="p360Photo" src="" alt="Student" class="rounded-circle object-fit-cover border border-2 border-white d-none"
+                         style="width: 56px; height: 56px;">
+                    <div id="p360Initials"
+                         class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-bold fs-5"
+                         style="width: 56px; height: 56px;">ST</div>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0" id="p360Name">Student Name</h5>
+                        <div class="small text-light opacity-75">
+                            <span id="p360Roll">ROLL</span> &bull;
+                            <span id="p360Dept">DEPT</span> &bull;
+                            <span id="p360Sem">Sem 1</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2 ms-auto">
+                    <span id="p360StatusBadge" class="badge bg-success">Active</span>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+
+            <div class="modal-body p-4">
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabPersonal" type="button">
+                            Personal & Guardian
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabAttendance" type="button">
+                            Attendance Overview
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabAcademics" type="button">
+                            Academic Performance
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabEligibility" type="button">
+                            Fee & Exam Eligibility
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- Personal & Guardian Tab -->
+                    <div class="tab-pane fade show active" id="tabPersonal">
+                        <div class="row g-3">
+                            <div class="col-md-6"><small class="text-muted d-block">Email</small><span id="p360Email" class="fw-medium"></span></div>
+                            <div class="col-md-6"><small class="text-muted d-block">Phone</small><span id="p360Phone" class="fw-medium"></span></div>
+                            <div class="col-md-4"><small class="text-muted d-block">Date of Birth</small><span id="p360Dob" class="fw-medium"></span></div>
+                            <div class="col-md-4"><small class="text-muted d-block">Gender</small><span id="p360Gender" class="fw-medium"></span></div>
+                            <div class="col-md-4"><small class="text-muted d-block">Admission Year</small><span id="p360AdmYear" class="fw-medium"></span></div>
+                            <div class="col-md-6"><small class="text-muted d-block">Guardian Name</small><span id="p360GuardianName" class="fw-medium"></span></div>
+                            <div class="col-md-6"><small class="text-muted d-block">Guardian Phone</small><span id="p360GuardianPhone" class="fw-medium"></span></div>
+                            <div class="col-12"><small class="text-muted d-block">Full Address</small><span id="p360Address" class="fw-medium"></span></div>
+                        </div>
+                    </div>
+
+                    <!-- Attendance Tab -->
+                    <div class="tab-pane fade" id="tabAttendance">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="fw-semibold">Overall Attendance: <strong id="p360OverallAtt">0%</strong></span>
+                            <small class="text-muted">Minimum required: 75%</small>
+                        </div>
+                        <div id="p360AttendanceBars" class="d-flex flex-column gap-3"></div>
+                    </div>
+
+                    <!-- Academics Tab -->
+                    <div class="tab-pane fade" id="tabAcademics">
+                        <div class="d-flex gap-3 mb-3">
+                            <div class="badge bg-primary fs-6 px-3 py-2">SGPA: <span id="p360Sgpa">0.00</span></div>
+                            <div class="badge bg-dark fs-6 px-3 py-2">CGPA: <span id="p360Cgpa">0.00</span></div>
+                        </div>
+                        <table class="table table-sm table-bordered mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>Subject</th>
+                                <th>Marks (100)</th>
+                                <th>Grade</th>
+                                <th>Grade Point</th>
+                            </tr>
+                            </thead>
+                            <tbody id="p360AcademicsBody"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- Fee & Exam Eligibility Tab -->
+                    <div class="tab-pane fade" id="tabEligibility">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="card border p-3">
+                                    <small class="text-muted">Semester Fee Status</small>
+                                    <div class="mt-1"><span id="p360FeeBadge" class="badge fs-6">Paid</span></div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card border p-3">
+                                    <small class="text-muted">Exam Eligibility</small>
+                                    <div class="mt-1"><span id="p360EligibleBadge" class="badge fs-6">Eligible</span></div>
+                                    <small class="text-muted mt-2 d-block">Requires Fee Paid &amp; Attendance &ge; 75%</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle me-2"></i>Confirm Delete</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to permanently delete <strong id="deleteStudentName"></strong>
+                (<code id="deleteStudentRoll"></code>)? This action cannot be undone.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteStudentForm" method="post" class="m-0">
+                    <button type="submit" class="btn btn-danger">Delete Permanently</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk CSV Import Modal -->
+<div class="modal fade" id="importCsvModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-file-earmark-spreadsheet me-2"></i>Bulk Import Students (CSV)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form th:action="@{/students/import-csv}" method="post" enctype="multipart/form-data">
+                <div class="modal-body p-4">
+                    <div class="alert alert-info d-flex justify-content-between align-items-center">
+                        <span>Download the sample CSV template to see the exact column headers.</span>
+                        <a th:href="@{/students/sample-csv}" class="btn btn-sm btn-primary">
+                            <i class="bi bi-download me-1"></i> Download Sample CSV
+                        </a>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="csvFileInput" class="form-label fw-medium">Select CSV File *</label>
+                        <input type="file" id="csvFileInput" name="file" accept=".csv" class="form-control" required
+                               onchange="previewCsvFile(event)">
+                    </div>
+
+                    <div id="csvPreviewSection" class="d-none">
+                        <h6 class="fw-bold small text-muted mb-2">CSV Preview (First 5 rows):</h6>
+                        <div class="table-responsive" style="max-height: 220px;">
+                            <table class="table table-sm table-bordered small mb-0" id="csvPreviewTable"></table>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-upload me-1"></i> Import Students
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: scripts}"></div>
+
+<script th:inline="javascript">
+    document.addEventListener("DOMContentLoaded", function () {
+        // Trigger toast notifications from flash attributes
+        const successMsg = /*[[${successMessage}]]*/ null;
+        const errorMsg = /*[[${errorMessage}]]*/ null;
+        const warningMsg = /*[[${warningMessage}]]*/ null;
+
+        if (successMsg) showToast(successMsg, "bg-success text-white");
+        else if (errorMsg) showToast(errorMsg, "bg-danger text-white");
+        else if (warningMsg) showToast(warningMsg, "bg-warning text-dark");
+
+        // Reopen modal if server-side validation failed
+        const showModal = /*[[${showStudentModal}]]*/ false;
+        const isEdit = /*[[${isEdit}]]*/ false;
+        if (showModal) {
+            document.getElementById("studentModalTitle").textContent = isEdit ? "Edit Student" : "Add New Student";
+            new bootstrap.Modal(document.getElementById("studentFormModal")).show();
+        }
+
+        // Checkbox selection handling
+        const selectAll = document.getElementById("selectAllCheckbox");
+        const checkboxes = document.querySelectorAll(".student-checkbox");
+        if (selectAll) {
+            selectAll.addEventListener("change", function () {
+                checkboxes.forEach(cb => cb.checked = selectAll.checked);
+                updateBulkBar();
+            });
+        }
+        checkboxes.forEach(cb => cb.addEventListener("change", updateBulkBar));
+    });
+
+    function showToast(message, bgClass) {
+        const toastEl = document.getElementById("liveToast");
+        const bodyEl = document.getElementById("liveToastBody");
+        toastEl.className = "toast align-items-center border-0 " + bgClass;
+        bodyEl.textContent = message;
+        new bootstrap.Toast(toastEl, { delay: 4000 }).show();
+    }
+
+    function updateBulkBar() {
+        const checked = document.querySelectorAll(".student-checkbox:checked");
+        const btn = document.getElementById("bulkPromoteBtn");
+        const countEl = document.getElementById("selectedCount");
+        countEl.textContent = checked.length;
+        if (checked.length > 0) btn.classList.remove("d-none");
+        else btn.classList.add("d-none");
+    }
+
+    function submitBulkPromote() {
+        const checked = document.querySelectorAll(".student-checkbox:checked");
+        if (checked.length === 0) return;
+        const form = document.getElementById("bulkPromoteForm");
+        form.innerHTML = "";
+        checked.forEach(cb => {
+            const input = document.createElement("input");
+            input.type = "hidden";
+            input.name = "studentIds";
+            input.value = cb.value;
+            form.appendChild(input);
+        });
+        form.submit();
+    }
+
+    function openAddStudentModal() {
+        document.getElementById("studentModalTitle").textContent = "Add New Student";
+        document.getElementById("formStudentId").value = "";
+        document.getElementById("formRollNumber").value = "";
+        document.getElementById("formFirstName").value = "";
+        document.getElementById("formLastName").value = "";
+        document.getElementById("formEmail").value = "";
+        document.getElementById("formPhone").value = "";
+        document.getElementById("formDob").value = "";
+        document.getElementById("formGender").value = "";
+        document.getElementById("formDepartment").value = "";
+        document.getElementById("formSemester").value = "1";
+        document.getElementById("formAdmissionYear").value = new Date().getFullYear();
+        document.getElementById("formStatus").value = "Active";
+        document.getElementById("formFeeStatus").value = "Paid";
+        document.getElementById("formGuardianName").value = "";
+        document.getElementById("formGuardianPhone").value = "";
+        document.getElementById("formAddress").value = "";
+        document.getElementById("photoPreview").src = "https://via.placeholder.com/40x40?text=Pic";
+        document.getElementById("photoFileInput").value = "";
+        suggestRollNumber();
+        new bootstrap.Modal(document.getElementById("studentFormModal")).show();
+    }
+
+    function openEditStudentModal(id) {
+        fetch("/students/api/" + id + "/profile")
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById("studentModalTitle").textContent = "Edit Student";
+                document.getElementById("formStudentId").value = data.id;
+                document.getElementById("formRollNumber").value = data.rollNumber || "";
+                document.getElementById("formFirstName").value = data.firstName || "";
+                document.getElementById("formLastName").value = data.lastName || "";
+                document.getElementById("formEmail").value = data.email || "";
+                document.getElementById("formPhone").value = data.phone === "-" ? "" : (data.phone || "");
+                document.getElementById("formDob").value = data.dateOfBirth === "-" ? "" : (data.dateOfBirth || "");
+                document.getElementById("formGender").value = data.gender === "-" ? "" : (data.gender || "");
+                document.getElementById("formDepartment").value = data.departmentId || "";
+                document.getElementById("formSemester").value = data.semester || 1;
+                document.getElementById("formAdmissionYear").value = data.admissionYear || new Date().getFullYear();
+                document.getElementById("formStatus").value = data.status || "Active";
+                document.getElementById("formFeeStatus").value = data.feeStatus || "Paid";
+                document.getElementById("formGuardianName").value = data.guardianName === "-" ? "" : (data.guardianName || "");
+                document.getElementById("formGuardianPhone").value = data.guardianPhone === "-" ? "" : (data.guardianPhone || "");
+                document.getElementById("formAddress").value = data.address === "-" ? "" : (data.address || "");
+                document.getElementById("photoPreview").src = data.profilePhoto || "https://via.placeholder.com/40x40?text=Pic";
+                new bootstrap.Modal(document.getElementById("studentFormModal")).show();
+            });
+    }
+
+    function suggestRollNumber() {
+        const idVal = document.getElementById("formStudentId").value;
+        if (idVal) return; // Don't overwrite existing roll number in Edit mode
+        const deptId = document.getElementById("formDepartment").value;
+        const year = document.getElementById("formAdmissionYear").value || new Date().getFullYear();
+        let url = "/students/api/next-roll?admissionYear=" + encodeURIComponent(year);
+        if (deptId) url += "&departmentId=" + encodeURIComponent(deptId);
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById("formRollNumber").value = data.rollNumber;
+            });
+    }
+
+    function previewSelectedPhoto(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => document.getElementById("photoPreview").src = e.target.result;
+        reader.readAsDataURL(file);
+    }
+
+    function openDeleteModal(btn) {
+        const id = btn.getAttribute("data-id");
+        document.getElementById("deleteStudentName").textContent = btn.getAttribute("data-name");
+        document.getElementById("deleteStudentRoll").textContent = btn.getAttribute("data-roll");
+        document.getElementById("deleteStudentForm").action = "/students/delete/" + id;
+        new bootstrap.Modal(document.getElementById("deleteConfirmModal")).show();
+    }
+
+    function openProfileModal(id) {
+        fetch("/students/api/" + id + "/profile")
+            .then(res => res.json())
+            .then(d => {
+                document.getElementById("p360Name").textContent = d.fullName;
+                document.getElementById("p360Roll").textContent = d.rollNumber;
+                document.getElementById("p360Dept").textContent = d.departmentName;
+                document.getElementById("p360Sem").textContent = "Sem " + d.semester;
+
+                const statusBadge = document.getElementById("p360StatusBadge");
+                statusBadge.textContent = d.status;
+                statusBadge.className = "badge " + (d.status === "Active" ? "bg-success" : d.status === "Detained" ? "bg-danger" : "bg-secondary");
+
+                const photoEl = document.getElementById("p360Photo");
+                const initEl = document.getElementById("p360Initials");
+                if (d.profilePhoto) {
+                    photoEl.src = d.profilePhoto;
+                    photoEl.classList.remove("d-none");
+                    initEl.classList.add("d-none");
+                } else {
+                    photoEl.classList.add("d-none");
+                    initEl.classList.remove("d-none");
+                    initEl.textContent = (d.firstName[0] + d.lastName[0]).toUpperCase();
+                }
+
+                document.getElementById("p360Email").textContent = d.email;
+                document.getElementById("p360Phone").textContent = d.phone;
+                document.getElementById("p360Dob").textContent = d.dateOfBirth;
+                document.getElementById("p360Gender").textContent = d.gender;
+                document.getElementById("p360AdmYear").textContent = d.admissionYear;
+                document.getElementById("p360GuardianName").textContent = d.guardianName;
+                document.getElementById("p360GuardianPhone").textContent = d.guardianPhone;
+                document.getElementById("p360Address").textContent = d.address;
+
+                document.getElementById("p360OverallAtt").textContent = d.overallAttendance + "%";
+                const attContainer = document.getElementById("p360AttendanceBars");
+                attContainer.innerHTML = d.attendance.map(a => `
+                    <div>
+                        <div class="d-flex justify-content-between small mb-1">
+                            <span class="fw-medium">${a.subject}
+                                ${a.lowWarning ? '<span class="badge bg-danger ms-1">Low Attendance Warning</span>' : ''}
+                            </span>
+                            <span class="fw-bold ${a.lowWarning ? 'text-danger' : 'text-success'}">${a.percentage}%</span>
+                        </div>
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar ${a.lowWarning ? 'bg-danger' : 'bg-success'}"
+                                 style="width: ${a.percentage}%"></div>
+                        </div>
+                    </div>
+                `).join("");
+
+                document.getElementById("p360Sgpa").textContent = d.sgpa;
+                document.getElementById("p360Cgpa").textContent = d.cgpa;
+                document.getElementById("p360AcademicsBody").innerHTML = d.academics.map(m => `
+                    <tr>
+                        <td>${m.subject}</td>
+                        <td>${m.marks}</td>
+                        <td><span class="badge bg-info text-dark">${m.grade}</span></td>
+                        <td>${m.gradePoint}</td>
+                    </tr>
+                `).join("");
+
+                const feeBadge = document.getElementById("p360FeeBadge");
+                feeBadge.textContent = d.feeStatus;
+                feeBadge.className = "badge fs-6 " + (d.feeStatus === "Paid" ? "bg-success" : "bg-warning text-dark");
+
+                const eligBadge = document.getElementById("p360EligibleBadge");
+                eligBadge.textContent = d.examEligible ? "Eligible" : "Not Eligible";
+                eligBadge.className = "badge fs-6 " + (d.examEligible ? "bg-success" : "bg-danger");
+
+                new bootstrap.Modal(document.getElementById("profile360Modal")).show();
+            });
+    }
+
+    function previewCsvFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const lines = e.target.result.split(/\r?\n/).filter(l => l.trim().length > 0).slice(0, 6);
+            const table = document.getElementById("csvPreviewTable");
+            table.innerHTML = lines.map((line, idx) => {
+                const cols = line.split(",");
+                const tag = idx === 0 ? "th" : "td";
+                return `<tr class="${idx === 0 ? 'table-light' : ''}">${cols.slice(0, 7).map(c => `<${tag}>${c}</${tag}>`).join("")}</tr>`;
+            }).join("");
+            document.getElementById("csvPreviewSection").classList.remove("d-none");
+        };
+        reader.readAsText(file);
+    }
+</script>
+</body>
+</html>
