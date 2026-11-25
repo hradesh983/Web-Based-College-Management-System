@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head('Courses')}"></head>
+<body>
+
+<div th:replace="~{fragments/layout :: shell('Course Management', ~{::section})}">
+    <section>
+        <!-- Toast Container -->
+        <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
+            <div id="liveToast" class="toast align-items-center border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body fw-medium" id="liveToastBody"></div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search, Filter & Action Bar -->
+        <div class="card border-0 shadow-sm mb-4 rounded-3">
+            <div class="card-body">
+                <div class="row g-2 align-items-center">
+                    <div class="col-lg-9">
+                        <form th:action="@{/courses}" method="get" class="row g-2">
+                            <div class="col-md-5">
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                                    <input type="text" name="keyword" th:value="${keyword}" class="form-control"
+                                           placeholder="Search by course code or name...">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <select name="departmentId" class="form-select" onchange="this.form.submit()">
+                                    <option value="">All Departments</option>
+                                    <option th:each="dept : ${departments}"
+                                            th:value="${dept.id}"
+                                            th:text="${dept.code}"
+                                            th:selected="${selectedDepartmentId != null and selectedDepartmentId == dept.id}"></option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <select name="semester" class="form-select" onchange="this.form.submit()">
+                                    <option value="">All Semesters</option>
+                                    <option th:each="sem : ${#numbers.sequence(1, 8)}"
+                                            th:value="${sem}"
+                                            th:text="'Sem ' + ${sem}"
+                                            th:selected="${selectedSemester != null and selectedSemester == sem}"></option>
+                                </select>
+                            </div>
+                            <div class="col-md-2 d-flex gap-1">
+                                <button type="submit" class="btn btn-outline-primary w-100">Filter</button>
+                                <a th:if="${(keyword != null and !keyword.isEmpty()) or selectedDepartmentId != null or selectedSemester != null}"
+                                   th:href="@{/courses}" class="btn btn-outline-secondary" title="Reset">
+                                    <i class="bi bi-x-lg"></i>
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="col-lg-3 d-flex justify-content-lg-end">
+                        <button type="button" class="btn btn-primary" onclick="openAddCourseModal()">
+                            <i class="bi bi-plus-circle me-1"></i> Add Course
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Course Table -->
+        <div class="card border-0 shadow-sm rounded-3">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">Code</th>
+                            <th>Course Name</th>
+                            <th>Department</th>
+                            <th>Faculty</th>
+                            <th>Semester</th>
+                            <th>Credits</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th class="text-end pe-3">Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:if="${#lists.isEmpty(courseList)}">
+                            <td colspan="9" class="text-center text-muted py-5">
+                                <i class="bi bi-book fs-2 d-block mb-2 opacity-50"></i>
+                                No courses found. Click <strong>Add Course</strong> to create one.
+                            </td>
+                        </tr>
+                        <tr th:each="course : ${courseList}">
+                            <td class="ps-3 fw-semibold text-primary" th:text="${course.courseCode}">CSE-S1-001</td>
+                            <td th:text="${course.courseName}">Data Structures</td>
+                            <td th:text="${course.department != null ? course.department.code : 'N/A'}">CSE</td>
+                            <td>
+                                <span th:if="${course.faculty != null}" th:text="${course.faculty.fullName}" class="fw-medium"></span>
+                                <span th:if="${course.faculty == null}" class="text-muted small">Not Assigned</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-dark border" th:text="'Sem ' + ${course.semester}">Sem 1</span>
+                            </td>
+                            <td th:text="${course.credits}">3</td>
+                            <td>
+                                <span class="badge"
+                                      th:classappend="${course.type == 'Lab'} ? 'bg-warning text-dark' : 'bg-info text-dark'"
+                                      th:text="${course.type}">Theory</span>
+                            </td>
+                            <td>
+                                <span class="badge"
+                                      th:classappend="${course.status == 'Active'} ? 'bg-success' : 'bg-secondary'"
+                                      th:text="${course.status}">Active</span>
+                            </td>
+                            <td class="text-end pe-3">
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-info" title="View Details"
+                                            th:onclick="'openViewCourseModal(' + ${course.id} + ')'">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-primary" title="Edit Course"
+                                            th:onclick="'openEditCourseModal(' + ${course.id} + ')'">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-danger" title="Delete Course"
+                                            th:data-id="${course.id}"
+                                            th:data-code="${course.courseCode}"
+                                            th:data-name="${course.courseName}"
+                                            onclick="openDeleteCourseModal(this)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Pagination Footer -->
+            <div class="card-footer bg-white py-3 d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2"
+                 th:if="${totalPages > 0}">
+                <small class="text-muted">
+                    Showing page <strong th:text="${currentPage + 1}">1</strong> of
+                    <strong th:text="${totalPages}">1</strong>
+                    (<span th:text="${coursePage.totalElements}">0</span> total courses)
+                </small>
+                <nav th:if="${totalPages > 1}">
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item" th:classappend="${currentPage == 0} ? 'disabled'">
+                            <a class="page-link"
+                               th:href="@{/courses(page=${currentPage - 1}, keyword=${keyword}, departmentId=${selectedDepartmentId}, semester=${selectedSemester})}">Previous</a>
+                        </li>
+                        <li class="page-item"
+                            th:each="i : ${#numbers.sequence(0, totalPages - 1)}"
+                            th:classappend="${i == currentPage} ? 'active'">
+                            <a class="page-link"
+                               th:href="@{/courses(page=${i}, keyword=${keyword}, departmentId=${selectedDepartmentId}, semester=${selectedSemester})}"
+                               th:text="${i + 1}">1</a>
+                        </li>
+                        <li class="page-item" th:classappend="${currentPage + 1 >= totalPages} ? 'disabled'">
+                            <a class="page-link"
+                               th:href="@{/courses(page=${currentPage + 1}, keyword=${keyword}, departmentId=${selectedDepartmentId}, semester=${selectedSemester})}">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </section>
+</div>
+
+<!-- Add / Edit Course Modal -->
+<div class="modal fade" id="courseFormModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold" id="courseModalTitle">Add New Course</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form th:action="@{/courses/save}" th:object="${course}" method="post">
+                <div class="modal-body p-4">
+                    <input type="hidden" id="formCourseId" th:field="*{id}">
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label for="formCourseDept" class="form-label fw-medium">Department</label>
+                            <select id="formCourseDept" th:field="*{department}" class="form-select"
+                                    onchange="suggestCourseCode()">
+                                <option value="">-- Select Department --</option>
+                                <option th:each="dept : ${departments}"
+                                        th:value="${dept.id}"
+                                        th:text="${dept.code + ' - ' + dept.name}"></option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="formCourseSemester" class="form-label fw-medium">Semester</label>
+                            <select id="formCourseSemester" th:field="*{semester}" class="form-select"
+                                    onchange="suggestCourseCode()">
+                                <option th:each="sem : ${#numbers.sequence(1, 8)}"
+                                        th:value="${sem}" th:text="'Semester ' + ${sem}"></option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="formCourseCode" class="form-label fw-medium">Course Code *</label>
+                            <input type="text" id="formCourseCode" th:field="*{courseCode}" class="form-control"
+                                   th:classappend="${#fields.hasErrors('courseCode')} ? 'is-invalid'"
+                                   placeholder="Auto-generated or custom" required>
+                            <div class="invalid-feedback" th:errors="*{courseCode}"></div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="formCourseName" class="form-label fw-medium">Course Name *</label>
+                            <input type="text" id="formCourseName" th:field="*{courseName}" class="form-control"
+                                   th:classappend="${#fields.hasErrors('courseName')} ? 'is-invalid'"
+                                   placeholder="e.g., Data Structures & Algorithms" required>
+                            <div class="invalid-feedback" th:errors="*{courseName}"></div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="formCredits" class="form-label fw-medium">Credits</label>
+                            <input type="number" id="formCredits" th:field="*{credits}" class="form-control"
+                                   min="1" max="10"
+                                   th:classappend="${#fields.hasErrors('credits')} ? 'is-invalid'">
+                            <div class="invalid-feedback" th:errors="*{credits}"></div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="formCourseType" class="form-label fw-medium">Type</label>
+                            <select id="formCourseType" th:field="*{type}" class="form-select">
+                                <option value="Theory">Theory</option>
+                                <option value="Lab">Lab</option>
+                                <option value="Theory + Lab">Theory + Lab</option>
+                                <option value="Elective">Elective</option>
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="formCourseStatus" class="form-label fw-medium">Status</label>
+                            <select id="formCourseStatus" th:field="*{status}" class="form-select">
+                                <option value="Active">Active</option>
+                                <option value="Inactive">Inactive</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label for="formCourseFaculty" class="form-label fw-medium">Assigned Faculty</label>
+                            <select id="formCourseFaculty" th:field="*{faculty}" class="form-select">
+                                <option value="">-- Not Assigned --</option>
+                                <option th:each="fac : ${facultyList}"
+                                        th:value="${fac.id}"
+                                        th:text="${fac.fullName + ' (' + fac.designation + ')'}"></option>
+                            </select>
+                        </div>
+
+                        <div class="col-12">
+                            <label for="formCourseDesc" class="form-label fw-medium">Description</label>
+                            <textarea id="formCourseDesc" th:field="*{description}" rows="3" class="form-control"
+                                      placeholder="Brief description of the course objectives..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="bi bi-save me-1"></i> Save Course
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- View Course Details Modal -->
+<div class="modal fade" id="viewCourseModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-dark text-white">
+                <div>
+                    <h5 class="modal-title fw-bold mb-0" id="vCourseCode">Code</h5>
+                    <small class="text-light opacity-75" id="vCourseName">Course Name</small>
+                </div>
+                <span id="vCourseStatusBadge" class="badge bg-success ms-auto me-2">Active</span>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row g-3">
+                    <div class="col-md-6"><small class="text-muted d-block">Department</small><span id="vCourseDept" class="fw-medium"></span></div>
+                    <div class="col-md-6"><small class="text-muted d-block">Semester</small><span id="vCourseSem" class="fw-medium"></span></div>
+                    <div class="col-md-4"><small class="text-muted d-block">Credits</small><span id="vCourseCredits" class="fw-medium"></span></div>
+                    <div class="col-md-4"><small class="text-muted d-block">Type</small><span id="vCourseType" class="fw-medium"></span></div>
+                    <div class="col-12"><small class="text-muted d-block">Assigned Faculty</small><span id="vCourseFaculty" class="fw-medium"></span></div>
+                    <div class="col-12"><small class="text-muted d-block">Description</small><span id="vCourseDesc" class="fw-medium"></span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteCourseModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle me-2"></i>Confirm Delete</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to delete <strong id="deleteCourseDisplay"></strong>? This action cannot be undone.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteCourseForm" method="post" class="m-0">
+                    <button type="submit" class="btn btn-danger">Delete Permanently</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:replace="~{fragments/layout :: scripts}"></div>
+
+<script th:inline="javascript">
+    document.addEventListener("DOMContentLoaded", function () {
+        const successMsg = /*[[${successMessage}]]*/ null;
+        const errorMsg = /*[[${errorMessage}]]*/ null;
+        if (successMsg) showToast(successMsg, "bg-success text-white");
+        else if (errorMsg) showToast(errorMsg, "bg-danger text-white");
+
+        const showModal = /*[[${showCourseModal}]]*/ false;
+        if (showModal) {
+            new bootstrap.Modal(document.getElementById("courseFormModal")).show();
+        }
+    });
+
+    function showToast(message, bgClass) {
+        const toastEl = document.getElementById("liveToast");
+        document.getElementById("liveToastBody").textContent = message;
+        toastEl.className = "toast align-items-center border-0 " + bgClass;
+        new bootstrap.Toast(toastEl, { delay: 4000 }).show();
+    }
+
+    function openAddCourseModal() {
+        document.getElementById("courseModalTitle").textContent = "Add New Course";
+        document.getElementById("formCourseId").value = "";
+        document.getElementById("formCourseCode").value = "";
+        document.getElementById("formCourseName").value = "";
+        document.getElementById("formCredits").value = "3";
+        document.getElementById("formCourseSemester").value = "1";
+        document.getElementById("formCourseType").value = "Theory";
+        document.getElementById("formCourseStatus").value = "Active";
+        document.getElementById("formCourseDept").value = "";
+        document.getElementById("formCourseFaculty").value = "";
+        document.getElementById("formCourseDesc").value = "";
+        suggestCourseCode();
+        new bootstrap.Modal(document.getElementById("courseFormModal")).show();
+    }
+
+    function openEditCourseModal(id) {
+        fetch("/courses/api/" + id)
+            .then(res => res.json())
+            .then(d => {
+                document.getElementById("courseModalTitle").textContent = "Edit Course";
+                document.getElementById("formCourseId").value = d.id;
+                document.getElementById("formCourseCode").value = d.courseCode || "";
+                document.getElementById("formCourseName").value = d.courseName || "";
+                document.getElementById("formCredits").value = d.credits || 3;
+                document.getElementById("formCourseSemester").value = d.semester || 1;
+                document.getElementById("formCourseType").value = d.type || "Theory";
+                document.getElementById("formCourseStatus").value = d.status || "Active";
+                document.getElementById("formCourseDept").value = d.departmentId || "";
+                document.getElementById("formCourseFaculty").value = d.facultyId || "";
+                document.getElementById("formCourseDesc").value = d.description === "-" ? "" : (d.description || "");
+                new bootstrap.Modal(document.getElementById("courseFormModal")).show();
+            });
+    }
+
+    function suggestCourseCode() {
+        const idVal = document.getElementById("formCourseId").value;
+        if (idVal) return;
+        const deptId = document.getElementById("formCourseDept").value;
+        const sem = document.getElementById("formCourseSemester").value;
+        let url = "/courses/api/next-code?semester=" + encodeURIComponent(sem);
+        if (deptId) url += "&departmentId=" + encodeURIComponent(deptId);
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById("formCourseCode").value = data.courseCode;
+            });
+    }
+
+    function openViewCourseModal(id) {
+        fetch("/courses/api/" + id)
+            .then(res => res.json())
+            .then(d => {
+                document.getElementById("vCourseCode").textContent = d.courseCode;
+                document.getElementById("vCourseName").textContent = d.courseName;
+                document.getElementById("vCourseDept").textContent = d.departmentName;
+                document.getElementById("vCourseSem").textContent = "Semester " + d.semester;
+                document.getElementById("vCourseCredits").textContent = d.credits + " Credits";
+                document.getElementById("vCourseType").textContent = d.type;
+                document.getElementById("vCourseFaculty").textContent = d.facultyName +
+                    (d.facultyDesignation ? " (" + d.facultyDesignation + ")" : "");
+                document.getElementById("vCourseDesc").textContent = d.description;
+
+                const badge = document.getElementById("vCourseStatusBadge");
+                badge.textContent = d.status;
+                badge.className = "badge ms-auto me-2 " + (d.status === "Active" ? "bg-success" : "bg-secondary");
+
+                new bootstrap.Modal(document.getElementById("viewCourseModal")).show();
+            });
+    }
+
+    function openDeleteCourseModal(btn) {
+        const id = btn.getAttribute("data-id");
+        const code = btn.getAttribute("data-code");
+        const name = btn.getAttribute("data-name");
+        document.getElementById("deleteCourseDisplay").textContent = code + " - " + name;
+        document.getElementById("deleteCourseForm").action = "/courses/delete/" + id;
+        new bootstrap.Modal(document.getElementById("deleteCourseModal")).show();
+    }
+</script>
+</body>
+</html>
